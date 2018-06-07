@@ -13,8 +13,10 @@ def recv_frame(sock, size):
         if not newbuf: return None
         buf += newbuf
         size -= len(newbuf)
-    newbuf = sock.recv(size)
-    buf += newbuf
+    while size != 0:
+        newbuf = sock.recv(size)
+        buf += newbuf
+        size -= len(newbuf)
     return buf
 
 def trans_size(sock, size):
