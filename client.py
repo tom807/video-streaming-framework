@@ -2,37 +2,12 @@ import socket
 import cv2
 import numpy
 import threading
-
-def recv_size(sock, count):
-    buf = b''
-    while count:
-        newbuf = sock.recv(count)
-        if not newbuf: return None
-        buf += newbuf
-        count -= len(newbuf)
-    return buf
-
-def recv_all(sock, count):
-    buf = b''
-    while count > 1024:
-        newbuf = sock.recv(1024)
-        if not newbuf: return None
-        buf += newbuf
-        count -= len(newbuf)
-
-    newbuf = sock.recv(count)
-    buf += newbuf
-    
-    #buf = sock.recv(count)
-    print("recv")
-    print(len(buf))
-    return buf
+import transfer
 
 cap = cv2.VideoCapture("/dev/video0")
-#ret, frame = cap.read()
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-address_server = ('127.0.0.1', 9587)
+address_server = ('127.0.0.1', 9997)
 sock.connect(address_server)
 
 framebuffer = []
@@ -60,9 +35,9 @@ class Display(threading.Thread):
 lock = threading.Lock()
 Display(lock, "display").start()
 '''
-ret, frame = cap.read()
 
-while ret:
+while True:
+    ret, frame = cap.read()
     framebuffer.append(frame)
 
     if len(framebuffer) > FRAME_BUFFER_SIZE:
@@ -75,28 +50,32 @@ while ret:
         cv2.imshow('display', displaybuffer.pop(0))
 
     if len(transferbuffer) > TRANSFER_BUFFER_SIZE:
-        result, imgencode = cv2.imencode('.jpg', transferbuffer.pop(0))
-        transfer_data = numpy.array(imgencode)
-        string_transfer_data = transfer_data.tostring()
+        string_transfer_data = transfer.convert2jpg(transferbuffer.pop(0))
         
-        transfer_len = str(len(string_transfer_data))
-        print("transfer: " + transfer_len)
-        sock.send(transfer_len.rjust(16).encode())
-        sock.send(string_transfer_data)
+        print("Send size to server")
+        transfer.trans_size(sock, len(string_transfer_data))
+        print("Sent: " + str(len(string_transfer_data)))
+
+        print("Send image to server")
+        transfer.trans_frame(sock, string_transfer_data)
+        #sock.send(string_transfer_data)
+        print("Image Sent!")
 
         # Get video back
-        print("Waiting size")
-        receive_length = recv_size(sock, 16)
+        print("Waiting Server size")
+        receive_length = transfer.recv_size(sock, 16)
         length = int(receive_length.decode())
+        print("Receive: " + str(length))
 
-        print("Waiting image")
-        stringData = recv_all(sock, length)
-        data = numpy.fromstring(stringData, numpy.uint8)
-        decimg = cv2.imdecode(data, cv2.IMREAD_COLOR)
+        print("Waiting Server image")
+        stringData = transfer.recv_frame(sock, length)
+        print("Image received successfully!")
+
+        decimg = transfer.convert2frame(stringData)
         cv2.imshow("client", decimg)
 
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
-    ret, frame = cap.read()
-    
+sock.close()
+cv2.destroyAllWindows()

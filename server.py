@@ -2,66 +2,43 @@ import socket
 import cv2
 import numpy
 import time
-
-def recv_size(sock, count):
-    buf = b''
-    while count:
-        newbuf = sock.recv(count)
-        if not newbuf: return None
-        buf += newbuf
-        count -= len(newbuf)
-    return buf
-
-def recv_all(sock, count):
-    buf = b''
-    while count > 1024:
-        newbuf = sock.recv(1024)
-        if not newbuf: return None
-        buf += newbuf
-        count -= len(newbuf)
-
-    newbuf = sock.recv(count)
-    buf += newbuf
-    
-    #buf = sock.recv(count)
-    print("recv")
-    print(len(buf))
-    return buf
+import transfer
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-address = ('127.0.0.1', 9587)
+address = ('127.0.0.1', 9997)
 s.bind(address) 
 s.listen(True) 
 print ('Waiting for images...')
 conn, addr = s.accept()
 
-while 1:
-    print("Waiting size")
-    receive_length = recv_size(conn, 16) 
+while True:
+    print("Waiting Client size")
+    receive_length = transfer.recv_size(conn, 16)
     length = int(receive_length.decode())
-    print(length)
-    if 2 > 1:
-        print("Waiting image")
-        stringData = recv_all(conn, length)
-        data = numpy.fromstring(stringData, numpy.uint8)
-        decimg=cv2.imdecode(data, cv2.IMREAD_COLOR) 
-        cv2.imshow('SERVER', decimg)
-        if cv2.waitKey(10) == 27:
-            break 
-        print('Image recieved successfully!')
-        
-        # Send Back
-        result, imgencode = cv2.imencode('.jpg', decimg)
-        transfer_data = numpy.array(imgencode)
-        string_transfer_data = transfer_data.tostring()
-        transfer_len = str(len(string_transfer_data))
-        print("Transfer: " + transfer_len)
-        conn.send(transfer_len.rjust(16).encode())
-        conn.send(string_transfer_data)
+    print("Receive: " + str(length))
 
-        #conn.send("Server has recieved messages!".encode())
-    #if cv2.waitKey(10) == 27:
-    #    break 
+    print("Waiting Client image")
+    stringData = transfer.recv_frame(conn, length)
+    print('Image recieved successfully!')
+
+    # Decode and display
+    decimg = transfer.convert2frame(stringData)
+    cv2.imshow('SERVER', decimg)
+
+    # Send Back
+    string_transfer_data = transfer.convert2jpg(decimg)
+ 
+    print("Send size to Client")
+    transfer.trans_size(conn, len(string_transfer_data))
+    print("Sent: " + str(len(string_transfer_data)))
+
+    print("Send image to Client")
+    transfer.trans_frame(conn, string_transfer_data)
+    #conn.send(string_transfer_data)
+    print("Image Sent!")
+
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
 
 s.close()
 cv2.destroyAllWindows()
