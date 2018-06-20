@@ -3,18 +3,15 @@ import cv2
 import numpy
 import threading
 import transfer
-
-cap = cv2.VideoCapture("/dev/video0")
-
-sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-address_server = ('127.0.0.1', 9999)
-sock.connect(address_server)
+from argparse import ArgumentParser
 
 framebuffer = []
 displaybuffer = []
 transferbuffer = []
 receiverbuffer = []
 
+#VIDEO_SOURCE = "/dev/video0"
+VIDEO_SOURCE = 0
 FRAME_BUFFER_SIZE = 125
 DISPLAY_BUFFER_SIZE = 10
 TRANSFER_BUFFER_SIZE = 20
@@ -84,30 +81,44 @@ class recvFrame(threading.Thread):
             receiverbuffer.append(decimg)
             self.rlock.release()
 
-display_lock = threading.Lock()
-transfer_lock = threading.Lock()
-receive_lock = threading.Lock()
+if __name__ == "__main__":
+    parser = ArgumentParser()
+    parser.add_argument("-ip", dest = "ip", default = "127.0.0.1")
+    parser.add_argument("-port", dest = "port", default = "9527")
 
-fetchFrame(display_lock, transfer_lock, "test").start()
-sendFrame(transfer_lock, "test").start()
-recvFrame(receive_lock, "test").start()
+    args = parser.parse_args()
+    ip_address = args.ip
+    port_number = int(args.port)
 
-while True:
-    if len(displaybuffer) > DISPLAY_BUFFER_SIZE:
-        display_lock.acquire()
-        disimg = displaybuffer.pop(0)
-        #cv2.imshow('display', displaybuffer.pop(0))
-        display_lock.release()
-        cv2.imshow('display', disimg)
+    cap = cv2.VideoCapture(VIDEO_SOURCE)
 
-    if len(receiverbuffer) > RECEIVER_BUFFER_SIZE:
-        receive_lock.acquire()
-        decimg = receiverbuffer.pop(0)
-        receive_lock.release()
-        cv2.imshow("client", decimg)
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    address_server = (ip_address, port_number)
+    sock.connect(address_server)
 
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
+    display_lock = threading.Lock()
+    transfer_lock = threading.Lock()
+    receive_lock = threading.Lock()
 
-sock.close()
-cv2.destroyAllWindows()
+    fetchFrame(display_lock, transfer_lock, "test").start()
+    sendFrame(transfer_lock, "test").start()
+    recvFrame(receive_lock, "test").start()
+
+    while True:
+        if len(displaybuffer) > DISPLAY_BUFFER_SIZE:
+            display_lock.acquire()
+            disimg = displaybuffer.pop(0)
+            display_lock.release()
+            cv2.imshow('display', disimg)
+
+        if len(receiverbuffer) > RECEIVER_BUFFER_SIZE:
+            receive_lock.acquire()
+            decimg = receiverbuffer.pop(0)
+            receive_lock.release()
+            cv2.imshow("client", decimg)
+
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+    sock.close()
+    cv2.destroyAllWindows()
