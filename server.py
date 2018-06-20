@@ -80,6 +80,10 @@ if __name__ == "__main__":
             # Display the video received on the server ?
             # cv2.imshow('SERVER', decimg)
 
+            # You can do extra processing on these frames here
+            # then append these processed frames into transferbuffer
+            # decimg = process(decimg)
+
             # Send Back
             transfer_lock.acquire()
             transferbuffer.append(decimg)
