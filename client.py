@@ -14,7 +14,6 @@ receiverbuffer = []
 VIDEO_SOURCE = 0
 FRAME_BUFFER_SIZE = 125
 DISPLAY_BUFFER_SIZE = 10
-TRANSFER_BUFFER_SIZE = 20
 RECEIVER_BUFFER_SIZE = 20
 
 class fetchFrame(threading.Thread):
@@ -27,8 +26,10 @@ class fetchFrame(threading.Thread):
         while True:
             ret, frame = cap.read()
             framebuffer.append(frame)
+            isReady = False
 
-            if len(framebuffer) > FRAME_BUFFER_SIZE:
+            if len(framebuffer) > FRAME_BUFFER_SIZE or isReady:
+                isReady = True
                 self.dlock.acquire()
                 displaybuffer.append(framebuffer[0])
                 self.dlock.release()
@@ -38,6 +39,8 @@ class fetchFrame(threading.Thread):
                 self.tlock.release()
 
                 framebuffer.pop(0)
+                if len(framebuffer) < 1:
+                    isReady = False
 
 class sendFrame(threading.Thread):
     def __init__(self, transfer_lock, threadName):
@@ -46,7 +49,7 @@ class sendFrame(threading.Thread):
 
     def run(self):
         while True:
-            if len(transferbuffer) > TRANSFER_BUFFER_SIZE:
+            if len(transferbuffer) > 0:
                 self.tlock.acquire()
                 string_transfer_data = transfer.convert2jpg(transferbuffer.pop(0))
                 self.tlock.release()
@@ -105,17 +108,25 @@ if __name__ == "__main__":
     recvFrame(receive_lock, "test").start()
 
     while True:
-        if len(displaybuffer) > DISPLAY_BUFFER_SIZE:
+        isReady0 = False
+        if len(displaybuffer) > DISPLAY_BUFFER_SIZE or isReady0:
+            isReady0 = True
             display_lock.acquire()
             disimg = displaybuffer.pop(0)
             display_lock.release()
             cv2.imshow('display', disimg)
+            if len(displaybuffer) < 1:
+                isReady0 = False
 
+        isReady1 = False
         if len(receiverbuffer) > RECEIVER_BUFFER_SIZE:
+            isReady = True
             receive_lock.acquire()
             decimg = receiverbuffer.pop(0)
             receive_lock.release()
             cv2.imshow("client", decimg)
+            if len(receiverbuffer) < 1:
+                isReady1 = False
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
