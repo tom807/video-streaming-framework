@@ -4,13 +4,7 @@ import numpy
 import time
 import threading
 import transfer
-
-s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-address = ('127.0.0.1', 9999)
-s.bind(address) 
-s.listen(True) 
-print ('Waiting for images...')
-conn, addr = s.accept()
+from argparse import ArgumentParser
 
 receiverbuffer = []
 transferbuffer = []
@@ -57,27 +51,42 @@ class sendFrame(threading.Thread):
                 transfer.trans_frame(conn, string_transfer_data)
                 print("Image Sent!")
 
+if __name__ == "__main__":
+    parser = ArgumentParser()
+    parser.add_argument("-ip", dest = "ip", default = "127.0.0.1")
+    parser.add_argument("-port", dest = "port", default = "9527")
 
-receive_lock = threading.Lock()
-transfer_lock = threading.Lock()
+    args = parser.parse_args()
+    ip_address = args.ip
+    port_number = int(args.port)
 
-sendFrame(transfer_lock, "test").start()
-recvFrame(receive_lock, "test").start()
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    address = (ip_address, port_number)
+    s.bind(address) 
+    s.listen(True) 
+    conn, addr = s.accept()
 
-while True:
-    if len(receiverbuffer) > 0:
-        receive_lock.acquire()
-        decimg = receiverbuffer.pop(0)
-        receive_lock.release()
-        cv2.imshow('SERVER', decimg)
+    receive_lock = threading.Lock()
+    transfer_lock = threading.Lock()
 
-        # Send Back
-        transfer_lock.acquire()
-        transferbuffer.append(decimg)
-        transfer_lock.release()
+    sendFrame(transfer_lock, "test").start()
+    recvFrame(receive_lock, "test").start()
 
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
+    while True:
+        if len(receiverbuffer) > 0:
+            receive_lock.acquire()
+            decimg = receiverbuffer.pop(0)
+            receive_lock.release()
+            # Display the video received on the server ?
+            # cv2.imshow('SERVER', decimg)
 
-s.close()
-cv2.destroyAllWindows()
+            # Send Back
+            transfer_lock.acquire()
+            transferbuffer.append(decimg)
+            transfer_lock.release()
+
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+    s.close()
+    cv2.destroyAllWindows()
