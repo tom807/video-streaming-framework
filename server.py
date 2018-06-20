@@ -77,7 +77,8 @@ if __name__ == "__main__":
             receive_lock.acquire()
             decimg = receiverbuffer.pop(0)
             receive_lock.release()
-            cv2.imshow('SERVER', decimg)
+            # Display the video received on the server ?
+            # cv2.imshow('SERVER', decimg)
 
             # Send Back
             transfer_lock.acquire()
